@@ -293,6 +293,7 @@
     for (const e of (data.expenses || [])) await repo.set('expenses', e.id, e);
     for (const e of (data.expenseEntries || [])) await repo.set('expenseEntries', e.id, e);
     for (const e of (data.settlements || [])) await repo.set('settlements', e.id, e);
+    for (const e of (data.activity || [])) await repo.set('activity', e.id, e);
     if (data.settings) await repo.set('settings', 'main', data.settings);
     log('settings', 'Backup importado (' + data.clients.length + ' clientes, ' + data.charges.length + ' mensalidades)');
   }
@@ -300,8 +301,8 @@
   function exportBackup() {
     const strip = (o) => { const x = Object.assign({}, o); return x; };
     return {
-      app: 'vulpes-financeiro', version: 1, exportedAt: new Date().toISOString(),
-      clients: state.clients.map(strip), charges: state.charges.map(strip), jobs: state.jobs.map(strip), expenses: state.expenses.map(strip), expenseEntries: state.expenseEntries.map(strip), settlements: state.settlements.map(strip), settings: state.settingsDoc || {},
+      app: 'vulpes-financeiro', version: 2, exportedAt: new Date().toISOString(),
+      clients: state.clients.map(strip), charges: state.charges.map(strip), jobs: state.jobs.map(strip), expenses: state.expenses.map(strip), expenseEntries: state.expenseEntries.map(strip), settlements: state.settlements.map(strip), activity: state.activity.map(strip), settings: state.settingsDoc || {},
     };
   }
 

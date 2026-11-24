@@ -23,7 +23,7 @@
       const prev = chains.get(key) || Promise.resolve();
       const next = prev.catch(() => {}).then(fn);
       chains.set(key, next);
-      next.finally(() => { if (chains.get(key) === next) chains.delete(key); });
+      next.finally(() => { if (chains.get(key) === next) chains.delete(key); }).catch(() => {});
       return next;
     };
   }
@@ -105,8 +105,79 @@
     };
   }
 
-  /* Escolhe o adaptador: armazenamento do Claude quando o app roda publicado; senão, o navegador. */
+  /* ---------- Supabase (versão web na Vercel): banco na nuvem com login das sócias ---------- */
+  const TABLES = { expenseEntries: 'expense_entries' };
+  const tableOf = (col) => TABLES[col] || col;
+
+  function SupabaseAdapter(sb) {
+    const enqueue = makeQueue();
+    const strip = (data) => { const o = JSON.parse(JSON.stringify(data)); delete o.id; return o; };
+    const fail = (error) => {
+      const e = new Error(error.message || 'Erro no banco de dados');
+      e.code = error.code === 'P0002' ? 'invalid_argument' : (error.code || 'unknown');
+      throw e;
+    };
+    const withRetry = async (fn) => {
+      const run = async () => { const { error } = await fn(); if (error) fail(error); };
+      try { return await run(); } catch (e) {
+        if (e && e.code === 'invalid_argument') throw e;
+        await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
+        return run();
+      }
+    };
+    async function fetchAll(table) {
+      const rows = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from(table).select('id,data').order('id').range(from, from + 999);
+        if (error) throw error;
+        rows.push(...data);
+        if (data.length < 1000) break;
+      }
+      return rows;
+    }
+    return {
+      kind: 'supabase',
+      subscribe(col, onData, onError) {
+        const table = tableOf(col);
+        const docs = new Map();
+        let closed = false, loaded = false, pending = [];
+        const emit = () => onData(Array.from(docs.entries()).map(([id, d]) => Object.assign({ id }, d)), { definitive: true });
+        const apply = (p) => {
+          if (p.eventType === 'DELETE') { if (p.old && p.old.id) docs.delete(p.old.id); } else if (p.new && p.new.id) docs.set(p.new.id, p.new.data || {});
+        };
+        // Ouve as mudanças antes da primeira leitura para não perder nada entre uma e outra.
+        const channel = sb.channel('vf-' + table)
+          .on('postgres_changes', { event: '*', schema: 'public', table }, (p) => {
+            if (!loaded) { pending.push(p); return; }
+            apply(p); emit();
+          })
+          .subscribe((status, err) => {
+            if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && onError) onError(err || new Error('Sem atualização ao vivo: ' + status));
+          });
+        fetchAll(table).then((rows) => {
+          if (closed) return;
+          rows.forEach((r) => docs.set(r.id, r.data || {}));
+          loaded = true; pending.forEach(apply); pending = [];
+          emit();
+        }).catch((e) => onError && onError(e));
+        return () => { closed = true; sb.removeChannel(channel); };
+      },
+      set(col, id, data) {
+        return enqueue(col + '/' + id, () => withRetry(() => sb.from(tableOf(col)).upsert({ id, data: strip(data) })));
+      },
+      update(col, id, patch) {
+        return enqueue(col + '/' + id, () => withRetry(() => sb.rpc('mescla_campos', { tabela: tableOf(col), registro: id, campos: strip(patch) })));
+      },
+      remove(col, id) {
+        return enqueue(col + '/' + id, () => withRetry(() => sb.from(tableOf(col)).delete().eq('id', id)));
+      },
+    };
+  }
+
+  /* Escolhe o adaptador: Supabase na versão web com login; armazenamento do Claude quando publicado no claude.ai;
+   * senão, o navegador. */
   async function connect(seed) {
+    if (V.auth && V.auth.client && V.auth.user) return SupabaseAdapter(V.auth.client);
     if (window.claude && typeof window.claude.use === 'function') {
       try {
         const db = await window.claude.use('db');
@@ -116,5 +187,5 @@
     return LocalAdapter(seed);
   }
 
-  V.storage = { connect, ClaudeDbAdapter, LocalAdapter, COLLECTIONS, LS_KEY };
+  V.storage = { connect, ClaudeDbAdapter, LocalAdapter, SupabaseAdapter, COLLECTIONS, LS_KEY };
 })(window.Vulpes = window.Vulpes || {});

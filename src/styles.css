@@ -508,3 +508,22 @@ tr.clickable:hover td { background: var(--accent-soft); }
 .settle .pill { border-color: transparent; }
 .link-btn { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; text-decoration: underline; text-decoration-color: var(--vl); text-underline-offset: 3px; }
 tr.row-on td { background: var(--accent-soft); }
+
+/* ---------- Login (versão web) ---------- */
+.auth-wrap { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--side-bg); }
+.auth-card { width: 100%; max-width: 380px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 28px 26px 22px; display: grid; gap: 6px; }
+.auth-card h1 { font-size: 1.7rem; letter-spacing: .02em; }
+.auth-card form { display: grid; gap: 14px; margin-top: 10px; }
+.auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.auth-brand img { width: 44px; height: 44px; object-fit: contain; background: var(--side-bg); border-radius: 10px; padding: 6px; }
+.auth-brand strong { display: block; font-family: var(--font-display); font-size: 1.25rem; text-transform: uppercase; letter-spacing: .08em; line-height: 1; }
+.auth-brand span { font-family: var(--font-display); font-weight: 700; font-size: .72rem; letter-spacing: .26em; color: var(--vl); text-transform: uppercase; }
+.auth-sub { margin: 0; color: var(--muted); font-size: .9rem; }
+.auth-btn { width: 100%; justify-content: center; padding-top: 11px; padding-bottom: 11px; }
+.auth-btn:disabled { opacity: .6; cursor: progress; }
+.auth-msg { margin: 0; min-height: 1.2em; font-size: .85rem; color: var(--ok); }
+.auth-msg.bad { color: var(--bad); }
+.auth-msg:empty { display: none; }
+.auth-link { background: none; border: 0; padding: 4px 0; color: var(--accent-text); font: inherit; font-size: .85rem; text-decoration: underline; cursor: pointer; justify-self: center; }
+.side-user { color: var(--side-ink); }
+.side-logout { background: none; border: 0; padding: 0; color: var(--vl); font: inherit; text-decoration: underline; cursor: pointer; }

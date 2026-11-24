@@ -520,6 +520,25 @@ tr.clickable:hover td { background: var(--accent-soft); }
 .link-btn { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; text-decoration: underline; text-decoration-color: var(--vl); text-underline-offset: 3px; }
 tr.row-on td { background: var(--accent-soft); }
 
+/* ---------- Login (versão web) ---------- */
+.auth-wrap { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--side-bg); }
+.auth-card { width: 100%; max-width: 380px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 28px 26px 22px; display: grid; gap: 6px; }
+.auth-card h1 { font-size: 1.7rem; letter-spacing: .02em; }
+.auth-card form { display: grid; gap: 14px; margin-top: 10px; }
+.auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.auth-brand img { width: 44px; height: 44px; object-fit: contain; background: var(--side-bg); border-radius: 10px; padding: 6px; }
+.auth-brand strong { display: block; font-family: var(--font-display); font-size: 1.25rem; text-transform: uppercase; letter-spacing: .08em; line-height: 1; }
+.auth-brand span { font-family: var(--font-display); font-weight: 700; font-size: .72rem; letter-spacing: .26em; color: var(--vl); text-transform: uppercase; }
+.auth-sub { margin: 0; color: var(--muted); font-size: .9rem; }
+.auth-btn { width: 100%; justify-content: center; padding-top: 11px; padding-bottom: 11px; }
+.auth-btn:disabled { opacity: .6; cursor: progress; }
+.auth-msg { margin: 0; min-height: 1.2em; font-size: .85rem; color: var(--ok); }
+.auth-msg.bad { color: var(--bad); }
+.auth-msg:empty { display: none; }
+.auth-link { background: none; border: 0; padding: 4px 0; color: var(--accent-text); font: inherit; font-size: .85rem; text-decoration: underline; cursor: pointer; justify-self: center; }
+.side-user { color: var(--side-ink); }
+.side-logout { background: none; border: 0; padding: 0; color: var(--vl); font: inherit; text-decoration: underline; cursor: pointer; }
+
 </style>
 </head>
 <body>
@@ -732,7 +751,7 @@ tr.row-on td { background: var(--accent-soft); }
       const prev = chains.get(key) || Promise.resolve();
       const next = prev.catch(() => {}).then(fn);
       chains.set(key, next);
-      next.finally(() => { if (chains.get(key) === next) chains.delete(key); });
+      next.finally(() => { if (chains.get(key) === next) chains.delete(key); }).catch(() => {});
       return next;
     };
   }
@@ -814,8 +833,79 @@ tr.row-on td { background: var(--accent-soft); }
     };
   }
 
-  /* Escolhe o adaptador: armazenamento do Claude quando o app roda publicado; senão, o navegador. */
+  /* ---------- Supabase (versão web na Vercel): banco na nuvem com login das sócias ---------- */
+  const TABLES = { expenseEntries: 'expense_entries' };
+  const tableOf = (col) => TABLES[col] || col;
+
+  function SupabaseAdapter(sb) {
+    const enqueue = makeQueue();
+    const strip = (data) => { const o = JSON.parse(JSON.stringify(data)); delete o.id; return o; };
+    const fail = (error) => {
+      const e = new Error(error.message || 'Erro no banco de dados');
+      e.code = error.code === 'P0002' ? 'invalid_argument' : (error.code || 'unknown');
+      throw e;
+    };
+    const withRetry = async (fn) => {
+      const run = async () => { const { error } = await fn(); if (error) fail(error); };
+      try { return await run(); } catch (e) {
+        if (e && e.code === 'invalid_argument') throw e;
+        await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
+        return run();
+      }
+    };
+    async function fetchAll(table) {
+      const rows = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from(table).select('id,data').order('id').range(from, from + 999);
+        if (error) throw error;
+        rows.push(...data);
+        if (data.length < 1000) break;
+      }
+      return rows;
+    }
+    return {
+      kind: 'supabase',
+      subscribe(col, onData, onError) {
+        const table = tableOf(col);
+        const docs = new Map();
+        let closed = false, loaded = false, pending = [];
+        const emit = () => onData(Array.from(docs.entries()).map(([id, d]) => Object.assign({ id }, d)), { definitive: true });
+        const apply = (p) => {
+          if (p.eventType === 'DELETE') { if (p.old && p.old.id) docs.delete(p.old.id); } else if (p.new && p.new.id) docs.set(p.new.id, p.new.data || {});
+        };
+        // Ouve as mudanças antes da primeira leitura para não perder nada entre uma e outra.
+        const channel = sb.channel('vf-' + table)
+          .on('postgres_changes', { event: '*', schema: 'public', table }, (p) => {
+            if (!loaded) { pending.push(p); return; }
+            apply(p); emit();
+          })
+          .subscribe((status, err) => {
+            if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && onError) onError(err || new Error('Sem atualização ao vivo: ' + status));
+          });
+        fetchAll(table).then((rows) => {
+          if (closed) return;
+          rows.forEach((r) => docs.set(r.id, r.data || {}));
+          loaded = true; pending.forEach(apply); pending = [];
+          emit();
+        }).catch((e) => onError && onError(e));
+        return () => { closed = true; sb.removeChannel(channel); };
+      },
+      set(col, id, data) {
+        return enqueue(col + '/' + id, () => withRetry(() => sb.from(tableOf(col)).upsert({ id, data: strip(data) })));
+      },
+      update(col, id, patch) {
+        return enqueue(col + '/' + id, () => withRetry(() => sb.rpc('mescla_campos', { tabela: tableOf(col), registro: id, campos: strip(patch) })));
+      },
+      remove(col, id) {
+        return enqueue(col + '/' + id, () => withRetry(() => sb.from(tableOf(col)).delete().eq('id', id)));
+      },
+    };
+  }
+
+  /* Escolhe o adaptador: Supabase na versão web com login; armazenamento do Claude quando publicado no claude.ai;
+   * senão, o navegador. */
   async function connect(seed) {
+    if (V.auth && V.auth.client && V.auth.user) return SupabaseAdapter(V.auth.client);
     if (window.claude && typeof window.claude.use === 'function') {
       try {
         const db = await window.claude.use('db');
@@ -825,7 +915,7 @@ tr.row-on td { background: var(--accent-soft); }
     return LocalAdapter(seed);
   }
 
-  V.storage = { connect, ClaudeDbAdapter, LocalAdapter, COLLECTIONS, LS_KEY };
+  V.storage = { connect, ClaudeDbAdapter, LocalAdapter, SupabaseAdapter, COLLECTIONS, LS_KEY };
 })(window.Vulpes = window.Vulpes || {});
 
 /* Mensagens de cobrança e canais de envio.
@@ -1240,6 +1330,7 @@ tr.row-on td { background: var(--accent-soft); }
     for (const e of (data.expenses || [])) await repo.set('expenses', e.id, e);
     for (const e of (data.expenseEntries || [])) await repo.set('expenseEntries', e.id, e);
     for (const e of (data.settlements || [])) await repo.set('settlements', e.id, e);
+    for (const e of (data.activity || [])) await repo.set('activity', e.id, e);
     if (data.settings) await repo.set('settings', 'main', data.settings);
     log('settings', 'Backup importado (' + data.clients.length + ' clientes, ' + data.charges.length + ' mensalidades)');
   }
@@ -1247,8 +1338,8 @@ tr.row-on td { background: var(--accent-soft); }
   function exportBackup() {
     const strip = (o) => { const x = Object.assign({}, o); return x; };
     return {
-      app: 'vulpes-financeiro', version: 1, exportedAt: new Date().toISOString(),
-      clients: state.clients.map(strip), charges: state.charges.map(strip), jobs: state.jobs.map(strip), expenses: state.expenses.map(strip), expenseEntries: state.expenseEntries.map(strip), settlements: state.settlements.map(strip), settings: state.settingsDoc || {},
+      app: 'vulpes-financeiro', version: 2, exportedAt: new Date().toISOString(),
+      clients: state.clients.map(strip), charges: state.charges.map(strip), jobs: state.jobs.map(strip), expenses: state.expenses.map(strip), expenseEntries: state.expenseEntries.map(strip), settlements: state.settlements.map(strip), activity: state.activity.map(strip), settings: state.settingsDoc || {},
     };
   }
 
@@ -3573,7 +3664,8 @@ tr.row-on td { background: var(--accent-soft); }
 
     root.innerHTML =
       '<div class="page-head"><div><div class="eyebrow">Ajustes</div><h1>Configurações</h1><p>Dados da agência, chave PIX, regras de vencimento e modelos de mensagem.</p></div>' +
-      '<button class="btn primary" data-act="settings-save">' + I.icon('check') + 'Salvar configurações</button></div>' +
+      '<div class="row">' + (V.auth && V.auth.user ? '<button class="btn" type="button" data-act="logout">Sair (' + U.esc(V.auth.user.nome) + ')</button>' : '') +
+      '<button class="btn primary" data-act="settings-save">' + I.icon('check') + 'Salvar configurações</button></div></div>' +
       '<form id="settings-form" novalidate style="display:grid;gap:18px">' +
 
       '<div class="grid-2b">' +
@@ -3662,7 +3754,7 @@ tr.row-on td { background: var(--accent-soft); }
     try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
     if (dl) {
       try { await dl.save({ filename, data }); return; } catch (e) { /* recusado: mostra o texto */ }
-    } else if (S.state.storageKind === 'local') {
+    } else if (!window.claude) {
       try {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
@@ -3758,7 +3850,9 @@ tr.row-on td { background: var(--accent-soft); }
       }
     });
     const local = S.state.storageKind === 'local';
-    footEl.innerHTML = '<span><span class="dot' + (local ? ' local' : '') + '"></span>' + (local ? 'Salvo neste navegador' : 'Dados sincronizados') + '</span><span>' + U.esc(S.settings().agencyName) + '</span>';
+    const who = V.auth && V.auth.user;
+    footEl.innerHTML = '<span><span class="dot' + (local ? ' local' : '') + '"></span>' + (local ? 'Salvo neste navegador' : 'Dados sincronizados') + '</span><span>' + U.esc(S.settings().agencyName) + '</span>' +
+      (who ? '<span class="side-user">' + U.esc(who.nome) + ' · <button type="button" class="side-logout" data-act="logout">Sair</button></span>' : '');
   }
 
   function render(force) {
@@ -3886,6 +3980,7 @@ tr.row-on td { background: var(--accent-soft); }
         case 'clear-payments': Object.assign(ui.payments, { q: '', month: U.currentYm(), client: '', status: '', method: '', period: '', from: '', to: '' }); render(); break;
         case 'settings-save': V.views.ajustes.save(viewEl); break;
         case 'backup-export': V.views.ajustes.exportBackup(); break;
+        case 'logout': if (V.auth) V.auth.signOut(); break;
         default: break;
       }
     });
@@ -3893,6 +3988,7 @@ tr.row-on td { background: var(--accent-soft); }
 
   async function start() {
     root = document.getElementById('app');
+    if (V.auth && V.auth.enabled) await V.auth.gate(root);
     shell();
     bind();
     fromHash();

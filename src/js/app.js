@@ -55,7 +55,9 @@
       }
     });
     const local = S.state.storageKind === 'local';
-    footEl.innerHTML = '<span><span class="dot' + (local ? ' local' : '') + '"></span>' + (local ? 'Salvo neste navegador' : 'Dados sincronizados') + '</span><span>' + U.esc(S.settings().agencyName) + '</span>';
+    const who = V.auth && V.auth.user;
+    footEl.innerHTML = '<span><span class="dot' + (local ? ' local' : '') + '"></span>' + (local ? 'Salvo neste navegador' : 'Dados sincronizados') + '</span><span>' + U.esc(S.settings().agencyName) + '</span>' +
+      (who ? '<span class="side-user">' + U.esc(who.nome) + ' · <button type="button" class="side-logout" data-act="logout">Sair</button></span>' : '');
   }
 
   function render(force) {
@@ -183,6 +185,7 @@
         case 'clear-payments': Object.assign(ui.payments, { q: '', month: U.currentYm(), client: '', status: '', method: '', period: '', from: '', to: '' }); render(); break;
         case 'settings-save': V.views.ajustes.save(viewEl); break;
         case 'backup-export': V.views.ajustes.exportBackup(); break;
+        case 'logout': if (V.auth) V.auth.signOut(); break;
         default: break;
       }
     });
@@ -190,6 +193,7 @@
 
   async function start() {
     root = document.getElementById('app');
+    if (V.auth && V.auth.enabled) await V.auth.gate(root);
     shell();
     bind();
     fromHash();

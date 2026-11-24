@@ -11,6 +11,14 @@ Identidade visual tirada de vulpesag.com.br: laranja #E05A1C / #B84A16, preto #0
 - **Versão offline:** abra `dist/vulpes-financeiro.html` no navegador. Nesse modo os dados ficam salvos só
   naquele navegador (nesta cópia do repositório ele começa vazio: os dados reais não são versionados). Use Configurações > Exportar/Importar backup para mover dados.
 
+## Versão web (Vercel + Supabase)
+
+- `dist/web/index.html` é gerado por `python3 build.py` e publicado pela Vercel (`vercel.json`).
+- Login das sócias pelo Supabase Auth. Só os e-mails cadastrados em `privado.emails_autorizados` viram sócias
+  (migração `003`); qualquer outro login não vê nenhum dado (regras RLS, migrações `001` e `002`).
+- `js/config.js` tem a URL e a chave **pública** do Supabase. A chave secreta nunca vai para o código.
+- Estrutura do banco: `supabase/migrations/` (rodar em ordem).
+
 ## Estrutura do código (`src/`)
 
 | Arquivo | Função |

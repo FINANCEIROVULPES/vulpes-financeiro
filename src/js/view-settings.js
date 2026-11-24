@@ -30,7 +30,8 @@
 
     root.innerHTML =
       '<div class="page-head"><div><div class="eyebrow">Ajustes</div><h1>Configurações</h1><p>Dados da agência, chave PIX, regras de vencimento e modelos de mensagem.</p></div>' +
-      '<button class="btn primary" data-act="settings-save">' + I.icon('check') + 'Salvar configurações</button></div>' +
+      '<div class="row">' + (V.auth && V.auth.user ? '<button class="btn" type="button" data-act="logout">Sair (' + U.esc(V.auth.user.nome) + ')</button>' : '') +
+      '<button class="btn primary" data-act="settings-save">' + I.icon('check') + 'Salvar configurações</button></div></div>' +
       '<form id="settings-form" novalidate style="display:grid;gap:18px">' +
 
       '<div class="grid-2b">' +
@@ -119,7 +120,7 @@
     try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
     if (dl) {
       try { await dl.save({ filename, data }); return; } catch (e) { /* recusado: mostra o texto */ }
-    } else if (S.state.storageKind === 'local') {
+    } else if (!window.claude) {
       try {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
