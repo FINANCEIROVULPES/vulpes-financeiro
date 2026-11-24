@@ -302,7 +302,7 @@
     const strip = (o) => { const x = Object.assign({}, o); return x; };
     return {
       app: 'vulpes-financeiro', version: 2, exportedAt: new Date().toISOString(),
-      clients: state.clients.map(strip), charges: state.charges.map(strip), jobs: state.jobs.map(strip), expenses: state.expenses.map(strip), expenseEntries: state.expenseEntries.map(strip), settlements: state.settlements.map(strip), activity: state.activity.map(strip), settings: state.settingsDoc || {},
+      clients: state.clients.map(strip), charges: state.charges.map(strip), jobs: state.jobs.map(strip), expenses: state.expenses.map(strip), expenseEntries: state.expenseEntries.map(strip), settlements: state.settlements.map(strip), activity: state.activity.map(strip), settings: Object.assign({}, DEFAULT_SETTINGS, state.settingsDoc || {}),
     };
   }
 
