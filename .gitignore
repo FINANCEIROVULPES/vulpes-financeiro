@@ -1,0 +1,23 @@
+# Dados nunca vão para o repositório: só código.
+# Backups exportados pelo sistema e qualquer JSON de dados
+*.json
+!package.json
+!package-lock.json
+!vercel.json
+!tsconfig.json
+*backup*
+# Variáveis de ambiente e segredos (tokens do Supabase, da Meta etc.)
+.env
+.env.*
+!.env.example
+# Pastas e arquivos com dados de clientes
+dados/
+data/
+backups/
+*.csv
+*.xlsx
+*.xls
+# Sistema
+.DS_Store
+Thumbs.db
+node_modules/
