@@ -2,7 +2,8 @@
 // - A chave do Asaas fica só no secret ASAAS_API_KEY (nunca no código, no site ou no GitHub).
 // - Toda chamada precisa do header x-vulpes-token igual ao valor guardado em public.integracao_config,
 //   tabela que ninguém lê pela API (RLS sem regras); só esta função, com a service role.
-// - Lê clientes e assinaturas. Única escrita: atualizar nome/celular/e-mail de um cliente já existente.
+// - Lê clientes e assinaturas; atualiza contato e notificações de clientes; cria assinaturas mensais.
+// - Nunca saca, transfere nem apaga nada.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const ASAAS = "https://api.asaas.com/v3";
@@ -92,6 +93,18 @@ Deno.serve(async (req) => {
         })),
       });
     }
+    if (acao === "listar_cobrancas") {
+      const sub = String(dados.assinatura ?? "");
+      if (!/^sub_[A-Za-z0-9]+$/.test(sub)) return json({ erro: "id de assinatura inválido" }, 400);
+      const cobr = await listarTodos("/payments?subscription=" + sub);
+      return json({
+        total: cobr.length,
+        cobrancas: cobr.map((p) => ({
+          id: p.id, valor: p.value, vencimento: p.dueDate, status: p.status, forma: p.billingType,
+          linkFatura: p.invoiceUrl, linkBoleto: p.bankSlipUrl, referencia: p.externalReference,
+        })),
+      });
+    }
     if (acao === "atualizar_cliente") {
       // Só nome, celular e e-mail; nada financeiro.
       const id = String(dados.id ?? "");
@@ -103,7 +116,38 @@ Deno.serve(async (req) => {
       const c = await asaasPost("/customers/" + id, patch);
       return json({ ok: true, cliente: { id: c.id, nome: c.name, celular: c.mobilePhone, email: c.email } });
     }
-    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "atualizar_cliente"] }, 400);
+    if (acao === "notificacoes_cliente") {
+      const id = String(dados.id ?? "");
+      if (!/^cus_[A-Za-z0-9]+$/.test(id)) return json({ erro: "id de cliente inválido" }, 400);
+      if (typeof dados.desligadas !== "boolean") return json({ erro: "informe desligadas: true ou false" }, 400);
+      const atual = await asaasGet("/customers/" + id);
+      const c = await asaasPost("/customers/" + id, { name: atual.name, notificationDisabled: dados.desligadas });
+      return json({ ok: true, cliente: { id: c.id, nome: c.name, notificacoesDesligadas: c.notificationDisabled } });
+    }
+    if (acao === "criar_assinatura") {
+      const id = String(dados.cliente ?? "");
+      if (!/^cus_[A-Za-z0-9]+$/.test(id)) return json({ erro: "id de cliente inválido" }, 400);
+      const valor = Number(dados.valor);
+      if (!(valor > 0 && valor < 100000)) return json({ erro: "valor inválido" }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dados.vencimento ?? ""))) return json({ erro: "vencimento inválido (AAAA-MM-DD)" }, 400);
+      if (!["PIX", "BOLETO"].includes(dados.forma)) return json({ erro: "forma deve ser PIX ou BOLETO" }, 400);
+      const ref = String(dados.referencia ?? "");
+      const cli = await asaasGet("/customers/" + id);
+      // Trava: só cria com as notificações do cliente desligadas, salvo pedido explícito.
+      if (!cli.notificationDisabled && dados.permitirAvisos !== true) {
+        return json({ erro: "notificações do cliente estão ligadas; desligue antes ou envie permitirAvisos: true" }, 409);
+      }
+      // Evita duplicar: já existe assinatura ativa deste cliente com a mesma referência?
+      const existentes = await listarTodos("/subscriptions?customer=" + id);
+      const dup = existentes.find((x) => !x.deleted && x.status === "ACTIVE" && (ref ? x.externalReference === ref : true));
+      if (dup) return json({ ok: true, jaExistia: true, assinatura: { id: dup.id, valor: dup.value, proximoVencimento: dup.nextDueDate, forma: dup.billingType } });
+      const s = await asaasPost("/subscriptions", {
+        customer: id, billingType: dados.forma, value: valor, nextDueDate: dados.vencimento, cycle: "MONTHLY",
+        description: String(dados.descricao ?? "Mensalidade Agência Vulpes"), externalReference: ref || undefined,
+      });
+      return json({ ok: true, assinatura: { id: s.id, cliente: s.customer, valor: s.value, proximoVencimento: s.nextDueDate, forma: s.billingType, status: s.status, referencia: s.externalReference } });
+    }
+    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
   } catch (e) {
     return json({ erro: String((e as Error).message ?? e) }, 502);
   }
