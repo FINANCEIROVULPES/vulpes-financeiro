@@ -2,7 +2,7 @@
 // - A chave do Asaas fica só no secret ASAAS_API_KEY (nunca no código, no site ou no GitHub).
 // - Toda chamada precisa do header x-vulpes-token igual ao valor guardado em public.integracao_config,
 //   tabela que ninguém lê pela API (RLS sem regras); só esta função, com a service role.
-// - Esta versão só LÊ dados do Asaas. Nada é criado, alterado ou apagado.
+// - Lê clientes e assinaturas. Única escrita: atualizar nome/celular/e-mail de um cliente já existente.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const ASAAS = "https://api.asaas.com/v3";
@@ -37,6 +37,19 @@ async function asaasGet(path: string) {
   return body;
 }
 
+async function asaasPost(path: string, payload: unknown) {
+  const key = Deno.env.get("ASAAS_API_KEY");
+  if (!key) throw new Error("ASAAS_API_KEY não configurada");
+  const r = await fetch(ASAAS + path, {
+    method: "POST",
+    headers: { access_token: key, "User-Agent": "VulpesFinanceiro", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("Asaas " + r.status + ": " + JSON.stringify(body?.errors ?? body));
+  return body;
+}
+
 async function listarTodos(path: string) {
   const itens: any[] = [];
   for (let offset = 0; offset < 1000; offset += 100) {
@@ -55,7 +68,8 @@ Deno.serve(async (req) => {
   if (!esperado || !iguais(recebido, esperado)) return json({ erro: "não autorizado" }, 401);
 
   let acao = "";
-  try { acao = (await req.json())?.acao ?? ""; } catch { /* corpo vazio */ }
+  let dados: any = {};
+  try { dados = (await req.json()) ?? {}; acao = dados.acao ?? ""; } catch { /* corpo vazio */ }
 
   try {
     if (acao === "listar_clientes") {
@@ -78,7 +92,18 @@ Deno.serve(async (req) => {
         })),
       });
     }
-    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas"] }, 400);
+    if (acao === "atualizar_cliente") {
+      // Só nome, celular e e-mail; nada financeiro.
+      const id = String(dados.id ?? "");
+      if (!/^cus_[A-Za-z0-9]+$/.test(id)) return json({ erro: "id de cliente inválido" }, 400);
+      const atual = await asaasGet("/customers/" + id);
+      const patch: Record<string, string> = { name: dados.nome ?? atual.name };
+      if (dados.celular !== undefined) patch.mobilePhone = String(dados.celular).replace(/\D/g, "");
+      if (dados.email !== undefined) patch.email = String(dados.email);
+      const c = await asaasPost("/customers/" + id, patch);
+      return json({ ok: true, cliente: { id: c.id, nome: c.name, celular: c.mobilePhone, email: c.email } });
+    }
+    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "atualizar_cliente"] }, 400);
   } catch (e) {
     return json({ erro: String((e as Error).message ?? e) }, 502);
   }
