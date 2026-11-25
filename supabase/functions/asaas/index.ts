@@ -112,6 +112,28 @@ Deno.serve(async (req) => {
         corFundoLogo: c.logoBackgroundColor, corFundoInfo: c.infoBackgroundColor, corFonte: c.fontColor, ativa: c.enabled,
       } });
     }
+    if (acao === "listar_notificacoes") {
+      const id = String(dados.cliente ?? "");
+      if (!/^cus_[A-Za-z0-9]+$/.test(id)) return json({ erro: "id de cliente inválido" }, 400);
+      const n = await listarTodos("/customers/" + id + "/notifications");
+      return json({ total: n.length, notificacoes: n.map((x) => ({
+        id: x.id, evento: x.event, dias: x.scheduleOffset, ativa: x.enabled,
+        email: x.emailEnabledForCustomer, sms: x.smsEnabledForCustomer, whatsapp: x.whatsappEnabledForCustomer,
+        ligacao: x.phoneCallEnabledForCustomer, emailParaVoce: x.emailEnabledForProvider, smsParaVoce: x.smsEnabledForProvider,
+      })) });
+    }
+    if (acao === "configurar_notificacoes") {
+      // Só liga/desliga avisos e canais do cliente e ajusta dias; não envia nada.
+      const id = String(dados.cliente ?? "");
+      if (!/^cus_[A-Za-z0-9]+$/.test(id)) return json({ erro: "id de cliente inválido" }, 400);
+      const lista = Array.isArray(dados.notificacoes) ? dados.notificacoes : [];
+      if (!lista.length) return json({ erro: "lista de notificações vazia" }, 400);
+      const permitidos = ["id", "enabled", "emailEnabledForCustomer", "smsEnabledForCustomer", "whatsappEnabledForCustomer", "phoneCallEnabledForCustomer", "scheduleOffset"];
+      const limpa = lista.map((x: any) => Object.fromEntries(Object.entries(x).filter(([k]) => permitidos.includes(k))));
+      if (limpa.some((x: any) => !/^not_[A-Za-z0-9]+$/.test(String(x.id ?? "")))) return json({ erro: "id de notificação inválido" }, 400);
+      const r = await asaasPost("/notifications/batch", { customer: id, notifications: limpa });
+      return json({ ok: true, atualizadas: (r.notifications ?? []).length });
+    }
     if (acao === "descricao_assinatura") {
       // Muda só o texto da assinatura e das cobranças pendentes dela; valor, data e forma ficam iguais.
       const sub = String(dados.assinatura ?? "");
@@ -163,7 +185,7 @@ Deno.serve(async (req) => {
       });
       return json({ ok: true, assinatura: { id: s.id, cliente: s.customer, valor: s.value, proximoVencimento: s.nextDueDate, forma: s.billingType, status: s.status, referencia: s.externalReference } });
     }
-    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "ver_personalizacao", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
+    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "ver_personalizacao", "listar_notificacoes", "configurar_notificacoes", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
   } catch (e) {
     return json({ erro: String((e as Error).message ?? e) }, 502);
   }
