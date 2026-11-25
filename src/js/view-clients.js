@@ -20,7 +20,7 @@
       const due = C.dueDateFor(c, cur, s.bankDays);
       const curCharge = S.state.charges.find((x) => x.clientId === c.id && x.month === cur);
       return '<tr>' +
-        '<td><div class="cell-name">' + U.esc(c.name) + '</div><div class="cell-sub">' + (c.contactName ? U.esc(c.contactName) + ' · ' : '') + (c.phone ? U.esc(U.formatPhone(c.phone)) : 'sem WhatsApp') + '</div></td>' +
+        '<td><div class="cell-name">' + U.esc(c.name) + '</div><div class="cell-sub">' + (c.contactName ? U.esc(c.contactName) + ' · ' : '') + (c.phone ? U.esc(U.formatPhone(c.phone)) : (c.email ? U.esc(c.email.split(',')[0].trim()) : 'sem WhatsApp')) + '</div></td>' +
         (c.hasRetainer === false ? '<td class="r"><span class="muted">Só jobs</span></td><td><span class="muted">—</span></td>' :
         '<td class="r"><b>' + U.money(c.amount) + '</b></td>' +
         '<td><div>' + U.esc(C.dueRuleLabel(c)) + '</div><div class="cell-sub">' + U.dateBR(due) + ' neste mês</div></td>') +
@@ -59,7 +59,7 @@
   /* ---------- Formulário ---------- */
   function openForm(client) {
     const s = S.settings();
-    const c = Object.assign({ name: '', contactName: '', amount: '', dueRule: 'fixed', dueDay: 10, paymentMethod: 'pix', pixKey: s.pixKey, phone: '', status: 'ativo', notes: '', startMonth: U.currentYm() }, client || {});
+    const c = Object.assign({ name: '', contactName: '', amount: '', dueRule: 'fixed', dueDay: 10, paymentMethod: 'pix', pixKey: s.pixKey, phone: '', email: '', status: 'ativo', notes: '', startMonth: U.currentYm() }, client || {});
     const isNew = !client;
     const body =
       '<form id="client-form" class="form-grid" novalidate>' +
@@ -68,6 +68,7 @@
       '<div class="field full"><label class="check"><input type="checkbox" id="f-ret" name="hasRetainer" value="true"' + (c.hasRetainer !== false ? ' checked' : '') + '><span><b>Cliente com mensalidade</b> <span class="muted">· desmarque para clientes que só contratam jobs</span></span></label></div>' +
       '<div class="field" data-ret><label for="f-amount">Valor mensal do contrato</label><input class="input tnum" id="f-amount" name="amount" inputmode="decimal" required value="' + (c.amount !== '' ? U.esc(String(c.amount).replace('.', ',')) : '') + '" placeholder="1.400,00"></div>' +
       '<div class="field"><label for="f-phone">Telefone / WhatsApp</label><input class="input" id="f-phone" name="phone" inputmode="tel" value="' + U.esc(c.phone) + '" placeholder="(11) 98888-7777"></div>' +
+      '<div class="field"><label for="f-email">E-mail para cobrança</label><input class="input" id="f-email" name="email" type="text" inputmode="email" autocomplete="off" value="' + U.esc(c.email || '') + '" placeholder="financeiro@cliente.com.br"><span class="hint">Mais de um? Separe por vírgula.</span></div>' +
       '<div class="field" data-ret><span class="lbl-sm">Regra de vencimento</span><div class="seg" role="group" aria-label="Regra de vencimento">' +
       '<button type="button" data-seg="dueRule" data-val="fixed" aria-pressed="' + (c.dueRule !== 'bd5') + '">Dia fixo</button>' +
       '<button type="button" data-seg="dueRule" data-val="bd5" aria-pressed="' + (c.dueRule === 'bd5') + '">5º dia útil</button></div>' +

@@ -173,7 +173,7 @@
       dueRule: data.dueRule === 'bd5' ? 'bd5' : 'fixed', dueDay: data.dueRule === 'bd5' ? 5 : Math.min(31, Math.max(1, Number(data.dueDay) || 1)),
       paymentMethod: data.paymentMethod === 'pix' ? 'pix' : 'boleto',
       pixKey: data.paymentMethod === 'pix' ? ((data.pixKey || '').trim() || s.pixKey) : '',
-      phone: (data.phone || '').trim(), status: data.status === 'inativo' ? 'inativo' : 'ativo', notes: (data.notes || '').trim(),
+      phone: (data.phone || '').trim(), email: (data.email || '').trim(), status: data.status === 'inativo' ? 'inativo' : 'ativo', notes: (data.notes || '').trim(),
       startMonth: data.startMonth || (prev && prev.startMonth) || U.currentYm(),
       hasRetainer: !(data.hasRetainer === false || data.hasRetainer === 'false'),
       createdAt: (prev && prev.createdAt) || new Date().toISOString(), updatedAt: new Date().toISOString(),
