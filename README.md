@@ -39,7 +39,7 @@ Para gerar os arquivos de `dist/` após mudanças: `python3 build.py`.
 
 ## Regras importantes
 
-- Mensalidades são geradas uma vez por cliente/mês (do mês de início até o próximo mês) e nunca são sobrescritas.
+- Mensalidades são geradas uma vez por cliente/mês (do mês de início até 12 meses à frente) e nunca são sobrescritas.
   Editar um cliente só altera as mensalidades em aberto a partir do mês atual.
 - "Aguardando pagamento" vencido aparece automaticamente como "Em atraso".
 - 5º dia útil: sem sábados, domingos e feriados nacionais. Por padrão também ignora Carnaval e Corpus Christi
@@ -49,7 +49,7 @@ Para gerar os arquivos de `dist/` após mudanças: `python3 build.py`.
 - Jobs: padrão 50% no aceite + 50% na segunda etapa, editável (quantidade, %, valor, nome, condição, vencimento e forma por parcela).
   Só entra como recebido a parcela marcada como paga. Clientes "só jobs" não geram mensalidades.
 
-- Despesas: fixas, assinaturas e parcelas geram um lançamento por mês (`<despesa>_<AAAA-MM>`), do mês de início até o próximo mês,
+- Despesas: fixas, assinaturas e parcelas geram um lançamento por mês (`<despesa>_<AAAA-MM>`), do mês de início até 12 meses à frente,
   sem duplicar. A parcela avança sozinha e para na última (quitada não gera mais nada). Assinaturas podem ser canceladas e fixas encerradas
   escolhendo o último mês; o histórico fica. Gastos variáveis e compras eventuais são lançamentos avulsos, sem limite.
   Despesas sem data de vencimento ficam "Pendente" sem virar atraso, até a data ser informada.

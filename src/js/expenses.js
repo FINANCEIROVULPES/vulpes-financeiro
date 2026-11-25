@@ -177,7 +177,8 @@
     if (!L.expenses || !L.expenseEntries) return;
     const repo = S._repo();
     const cur = U.currentYm();
-    const last = U.addMonths(cur, 1);
+    // 12 meses à frente: parcelas e assinaturas já aparecem no previsto do próximo ano.
+    const last = U.addMonths(cur, S.HORIZON_MONTHS || 12);
     const have = new Set(S.state.expenseEntries.map((e) => e.id));
     S.state.expenses.forEach((exp) => {
       if (!RECURRING.has(exp.type) || !exp.startMonth) return;

@@ -4,6 +4,9 @@
   const U = V.util, C = V.cal;
 
   const DEFAULT_PIX = ''; // Chave PIX da agência: definir em Configurações (não versionada)
+  /** Quantos meses à frente as mensalidades e despesas são lançadas. */
+  const HORIZON_MONTHS = 12;
+
   const DEFAULT_SETTINGS = {
     agencyName: 'Agência Vulpes',
     shortName: 'Vulpes',
@@ -145,7 +148,8 @@
   function ensureCharges() {
     if (!state.loaded.clients || !state.loaded.charges || !state.loaded.settings) return;
     const cur = U.currentYm();
-    const last = U.addMonths(cur, 1);
+    // Gera 12 meses à frente para o previsto e o calendário já mostrarem o próximo ano.
+    const last = U.addMonths(cur, HORIZON_MONTHS);
     const oldest = U.addMonths(cur, -24);
     const have = new Set(state.charges.map((c) => c.id));
     retainerClients().forEach((client) => {
@@ -332,7 +336,7 @@
   }
 
   V.store = {
-    state, init, onChange, settings, STATUS, DEFAULT_SETTINGS, SEED_CLIENTS,
+    state, init, onChange, settings, HORIZON_MONTHS, STATUS, DEFAULT_SETTINGS, SEED_CLIENTS,
     _repo: () => repo, guard, log, retainerClients,
     clientById, activeClients, chargesOf, isOverdue, effStatus, needsLateFollowUp, monthSummary, allOverdue,
     saveClient, deleteClient, setChargeStatus, updateCharge, saveSettings, importBackup, exportBackup,
