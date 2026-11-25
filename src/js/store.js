@@ -169,7 +169,7 @@
     const prev = clientById(id);
     const s = settings();
     const doc = {
-      name: data.name.trim(), contactName: (data.contactName || '').trim(), amount: U.parseMoney(data.amount),
+      name: data.name.trim().toLocaleUpperCase('pt-BR'), contactName: (data.contactName || '').trim(), amount: U.parseMoney(data.amount),
       dueRule: data.dueRule === 'bd5' ? 'bd5' : 'fixed', dueDay: data.dueRule === 'bd5' ? 5 : Math.min(31, Math.max(1, Number(data.dueDay) || 1)),
       paymentMethod: data.paymentMethod === 'pix' ? 'pix' : 'boleto',
       pixKey: data.paymentMethod === 'pix' ? ((data.pixKey || '').trim() || s.pixKey) : '',
