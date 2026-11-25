@@ -105,6 +105,13 @@ Deno.serve(async (req) => {
         })),
       });
     }
+    if (acao === "ver_personalizacao") {
+      const c = await asaasGet("/myAccount/paymentCheckoutConfig/");
+      return json({ ok: true, personalizacao: {
+        status: c.status, motivoRecusa: c.observations ?? null, temLogo: !!c.logoUrl,
+        corFundoLogo: c.logoBackgroundColor, corFundoInfo: c.infoBackgroundColor, corFonte: c.fontColor, ativa: c.enabled,
+      } });
+    }
     if (acao === "descricao_assinatura") {
       // Muda só o texto da assinatura e das cobranças pendentes dela; valor, data e forma ficam iguais.
       const sub = String(dados.assinatura ?? "");
@@ -156,7 +163,7 @@ Deno.serve(async (req) => {
       });
       return json({ ok: true, assinatura: { id: s.id, cliente: s.customer, valor: s.value, proximoVencimento: s.nextDueDate, forma: s.billingType, status: s.status, referencia: s.externalReference } });
     }
-    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
+    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "ver_personalizacao", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
   } catch (e) {
     return json({ erro: String((e as Error).message ?? e) }, 502);
   }
