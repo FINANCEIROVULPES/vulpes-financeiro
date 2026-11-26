@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
       return json({
         total: clientes.length,
         clientes: clientes.map((c) => ({
-          id: c.id, nome: c.name, cpfCnpj: c.cpfCnpj, email: c.email, celular: c.mobilePhone,
+          id: c.id, nome: c.name, cpfCnpj: c.cpfCnpj, email: c.email, emailsAdicionais: c.additionalEmails, celular: c.mobilePhone,
           referencia: c.externalReference, notificacoesDesligadas: c.notificationDisabled, excluido: c.deleted,
         })),
       });
@@ -153,15 +153,16 @@ Deno.serve(async (req) => {
       return json({ ok: true, assinatura: { id: s.id, descricao: s.description, valor: s.value, forma: s.billingType } });
     }
     if (acao === "atualizar_cliente") {
-      // Só nome, celular e e-mail; nada financeiro.
+      // Só nome, celular, e-mail e e-mails adicionais; nada financeiro.
       const id = String(dados.id ?? "");
       if (!/^cus_[A-Za-z0-9]+$/.test(id)) return json({ erro: "id de cliente inválido" }, 400);
       const atual = await asaasGet("/customers/" + id);
       const patch: Record<string, string> = { name: dados.nome ?? atual.name };
       if (dados.celular !== undefined) patch.mobilePhone = String(dados.celular).replace(/\D/g, "");
       if (dados.email !== undefined) patch.email = String(dados.email);
+      if (dados.emailsAdicionais !== undefined) patch.additionalEmails = String(dados.emailsAdicionais);
       const c = await asaasPost("/customers/" + id, patch);
-      return json({ ok: true, cliente: { id: c.id, nome: c.name, celular: c.mobilePhone, email: c.email } });
+      return json({ ok: true, cliente: { id: c.id, nome: c.name, celular: c.mobilePhone, email: c.email, emailsAdicionais: c.additionalEmails } });
     }
     if (acao === "notificacoes_cliente") {
       const id = String(dados.id ?? "");
