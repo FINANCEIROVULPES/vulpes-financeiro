@@ -143,6 +143,24 @@ Deno.serve(async (req) => {
       const s = await asaasPost("/subscriptions/" + sub, { value: valor, updatePendingPayments: true });
       return json({ ok: true, assinatura: { id: s.id, valor: s.value, proximoVencimento: s.nextDueDate, forma: s.billingType } });
     }
+    if (acao === "vencimento_assinatura") {
+      // Muda a data do próximo vencimento da assinatura (os meses seguintes seguem esse dia).
+      const sub = String(dados.assinatura ?? "");
+      if (!/^sub_[A-Za-z0-9]+$/.test(sub)) return json({ erro: "id de assinatura inválido" }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dados.proximoVencimento ?? ""))) return json({ erro: "data inválida (AAAA-MM-DD)" }, 400);
+      const s = await asaasPost("/subscriptions/" + sub, { nextDueDate: dados.proximoVencimento });
+      return json({ ok: true, assinatura: { id: s.id, valor: s.value, proximoVencimento: s.nextDueDate } });
+    }
+    if (acao === "vencimento_cobranca") {
+      // Muda a data de uma cobrança ainda pendente; valor e forma ficam iguais.
+      const id = String(dados.cobranca ?? "");
+      if (!/^pay_[A-Za-z0-9]+$/.test(id)) return json({ erro: "id de cobrança inválido" }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dados.vencimento ?? ""))) return json({ erro: "data inválida (AAAA-MM-DD)" }, 400);
+      const atual = await asaasGet("/payments/" + id);
+      if (atual.status !== "PENDING") return json({ erro: "só cobranças pendentes podem mudar de data (status: " + atual.status + ")" }, 409);
+      const p = await asaasPost("/payments/" + id, { billingType: atual.billingType, value: atual.value, dueDate: dados.vencimento });
+      return json({ ok: true, cobranca: { id: p.id, valor: p.value, vencimento: p.dueDate, status: p.status, linkFatura: p.invoiceUrl } });
+    }
     if (acao === "descricao_assinatura") {
       // Muda só o texto da assinatura e das cobranças pendentes dela; valor, data e forma ficam iguais.
       const sub = String(dados.assinatura ?? "");
@@ -195,7 +213,7 @@ Deno.serve(async (req) => {
       });
       return json({ ok: true, assinatura: { id: s.id, cliente: s.customer, valor: s.value, proximoVencimento: s.nextDueDate, forma: s.billingType, status: s.status, referencia: s.externalReference } });
     }
-    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "ver_personalizacao", "listar_notificacoes", "configurar_notificacoes", "valor_assinatura", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
+    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "ver_personalizacao", "listar_notificacoes", "configurar_notificacoes", "valor_assinatura", "vencimento_assinatura", "vencimento_cobranca", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
   } catch (e) {
     return json({ erro: String((e as Error).message ?? e) }, 502);
   }
