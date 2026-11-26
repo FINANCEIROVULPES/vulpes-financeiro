@@ -276,12 +276,11 @@
         await repo.update('clients', c.id, { pixKey: after.pixKey }).catch(() => {});
       }
     }
-    // Regra de dias úteis mudou: recalcula vencimentos em aberto do 5º dia útil a partir deste mês.
+    // Regra de dias úteis mudou: recalcula vencimentos em aberto a partir deste mês.
     if (after.bankDays !== before.bankDays) {
       const cur = U.currentYm();
-      for (const ch of state.charges.filter((x) => x.dueRule === 'bd5' && x.month >= cur && x.status !== 'pago')) {
-        const { y, m } = U.ymParts(ch.month);
-        const d = C.nthBusinessDay(y, m, 5, after.bankDays);
+      for (const ch of state.charges.filter((x) => x.month >= cur && x.status !== 'pago')) {
+        const d = C.dueDateFor(ch, ch.month, after.bankDays);
         if (d !== ch.dueDate) await repo.update('charges', ch.id, { dueDate: d }).catch(() => {});
       }
     }

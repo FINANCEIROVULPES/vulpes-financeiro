@@ -711,19 +711,27 @@ tr.row-on td { background: var(--accent-soft); }
     return y + '-' + U.pad(m) + '-' + U.pad(last);
   }
 
-  /** Data de vencimento de um cliente num mês "AAAA-MM". */
+  /** Próximo dia útil a partir de uma data (a própria data, se já for dia útil). */
+  function nextBusinessDay(dateStr, includeBankDays) {
+    const d = U.parseYmd(dateStr);
+    for (let i = 0; i < 15 && !isBusinessDay(U.ymd(d), includeBankDays); i++) d.setDate(d.getDate() + 1);
+    return U.ymd(d);
+  }
+
+  /** Data de vencimento de um cliente num mês "AAAA-MM".
+   * Dia fixo que cai em sábado, domingo ou feriado passa para o próximo dia útil. */
   function dueDateFor(client, monthStr, includeBankDays) {
     const { y, m } = U.ymParts(monthStr);
     if (client.dueRule === 'bd5') return nthBusinessDay(y, m, 5, includeBankDays);
     const day = Math.min(Math.max(1, Number(client.dueDay) || 1), U.daysInMonth(y, m));
-    return y + '-' + U.pad(m) + '-' + U.pad(day);
+    return nextBusinessDay(y + '-' + U.pad(m) + '-' + U.pad(day), includeBankDays);
   }
 
   function dueRuleLabel(client) {
     return client.dueRule === 'bd5' ? '5º dia útil' : 'Dia ' + (Number(client.dueDay) || 1);
   }
 
-  V.cal = { easter, holidays, holidayName, isBusinessDay, nthBusinessDay, dueDateFor, dueRuleLabel };
+  V.cal = { easter, holidays, holidayName, isBusinessDay, nthBusinessDay, nextBusinessDay, dueDateFor, dueRuleLabel };
 })(window.Vulpes = window.Vulpes || {});
 
 /* Camada de dados. O app só conversa com a interface abaixo, então trocar o armazenamento
@@ -1313,12 +1321,11 @@ tr.row-on td { background: var(--accent-soft); }
         await repo.update('clients', c.id, { pixKey: after.pixKey }).catch(() => {});
       }
     }
-    // Regra de dias úteis mudou: recalcula vencimentos em aberto do 5º dia útil a partir deste mês.
+    // Regra de dias úteis mudou: recalcula vencimentos em aberto a partir deste mês.
     if (after.bankDays !== before.bankDays) {
       const cur = U.currentYm();
-      for (const ch of state.charges.filter((x) => x.dueRule === 'bd5' && x.month >= cur && x.status !== 'pago')) {
-        const { y, m } = U.ymParts(ch.month);
-        const d = C.nthBusinessDay(y, m, 5, after.bankDays);
+      for (const ch of state.charges.filter((x) => x.month >= cur && x.status !== 'pago')) {
+        const d = C.dueDateFor(ch, ch.month, after.bankDays);
         if (d !== ch.dueDate) await repo.update('charges', ch.id, { dueDate: d }).catch(() => {});
       }
     }

@@ -61,17 +61,25 @@
     return y + '-' + U.pad(m) + '-' + U.pad(last);
   }
 
-  /** Data de vencimento de um cliente num mês "AAAA-MM". */
+  /** Próximo dia útil a partir de uma data (a própria data, se já for dia útil). */
+  function nextBusinessDay(dateStr, includeBankDays) {
+    const d = U.parseYmd(dateStr);
+    for (let i = 0; i < 15 && !isBusinessDay(U.ymd(d), includeBankDays); i++) d.setDate(d.getDate() + 1);
+    return U.ymd(d);
+  }
+
+  /** Data de vencimento de um cliente num mês "AAAA-MM".
+   * Dia fixo que cai em sábado, domingo ou feriado passa para o próximo dia útil. */
   function dueDateFor(client, monthStr, includeBankDays) {
     const { y, m } = U.ymParts(monthStr);
     if (client.dueRule === 'bd5') return nthBusinessDay(y, m, 5, includeBankDays);
     const day = Math.min(Math.max(1, Number(client.dueDay) || 1), U.daysInMonth(y, m));
-    return y + '-' + U.pad(m) + '-' + U.pad(day);
+    return nextBusinessDay(y + '-' + U.pad(m) + '-' + U.pad(day), includeBankDays);
   }
 
   function dueRuleLabel(client) {
     return client.dueRule === 'bd5' ? '5º dia útil' : 'Dia ' + (Number(client.dueDay) || 1);
   }
 
-  V.cal = { easter, holidays, holidayName, isBusinessDay, nthBusinessDay, dueDateFor, dueRuleLabel };
+  V.cal = { easter, holidays, holidayName, isBusinessDay, nthBusinessDay, nextBusinessDay, dueDateFor, dueRuleLabel };
 })(window.Vulpes = window.Vulpes || {});
