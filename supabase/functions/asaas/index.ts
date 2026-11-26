@@ -134,6 +134,15 @@ Deno.serve(async (req) => {
       const r = await asaasPost("/notifications/batch", { customer: id, notifications: limpa });
       return json({ ok: true, atualizadas: (r.notifications ?? []).length });
     }
+    if (acao === "valor_assinatura") {
+      // Muda o valor mensal da assinatura e das cobranças pendentes dela (as já pagas não mudam).
+      const sub = String(dados.assinatura ?? "");
+      if (!/^sub_[A-Za-z0-9]+$/.test(sub)) return json({ erro: "id de assinatura inválido" }, 400);
+      const valor = Number(dados.valor);
+      if (!(valor > 0 && valor < 100000)) return json({ erro: "valor inválido" }, 400);
+      const s = await asaasPost("/subscriptions/" + sub, { value: valor, updatePendingPayments: true });
+      return json({ ok: true, assinatura: { id: s.id, valor: s.value, proximoVencimento: s.nextDueDate, forma: s.billingType } });
+    }
     if (acao === "descricao_assinatura") {
       // Muda só o texto da assinatura e das cobranças pendentes dela; valor, data e forma ficam iguais.
       const sub = String(dados.assinatura ?? "");
@@ -185,7 +194,7 @@ Deno.serve(async (req) => {
       });
       return json({ ok: true, assinatura: { id: s.id, cliente: s.customer, valor: s.value, proximoVencimento: s.nextDueDate, forma: s.billingType, status: s.status, referencia: s.externalReference } });
     }
-    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "ver_personalizacao", "listar_notificacoes", "configurar_notificacoes", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
+    return json({ erro: "ação desconhecida", acoes: ["listar_clientes", "listar_assinaturas", "listar_cobrancas", "ver_personalizacao", "listar_notificacoes", "configurar_notificacoes", "valor_assinatura", "descricao_assinatura", "atualizar_cliente", "notificacoes_cliente", "criar_assinatura"] }, 400);
   } catch (e) {
     return json({ erro: String((e as Error).message ?? e) }, 502);
   }
